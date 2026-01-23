@@ -1,0 +1,43 @@
+name: Archive n8n Releases
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # Daily at midnight UTC
+  workflow_dispatch:
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout backup repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.SYNC_PAT }}
+
+      - name: Setup Git
+        run: |
+          git config user.name "GitHub Action"
+          git config user.email "action@github.com"
+
+      - name: Add upstream remote
+        run: git remote add upstream https://github.com/n8n-io/n8n.git || true
+
+      - name: Fetch upstream tags
+        run: git fetch upstream --tags
+
+      - name: Archive new releases
+        run: |
+          # Get all upstream release tags (n8n uses n8n@X.Y.Z format)
+          for tag in $(git tag -l 'n8n@*' --sort=-version:refname | head -50); do
+            # Check if tag exists in origin
+            if ! git ls-remote --tags origin "$tag" | grep -q "$tag"; then
+              echo "Archiving new release: $tag"
+              # Tag already exists locally from fetch, just need to push it
+            else
+              echo "Already archived: $tag"
+            fi
+          done
+
+      - name: Push tags
+        run: git push origin --tags --force
